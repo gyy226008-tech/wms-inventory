@@ -411,12 +411,15 @@ function renderInboundTable(records) {
   const el = document.getElementById('inbound-table');
   if (!records.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📥</div><p>暂无入库记录</p></div>'; return; }
   el.innerHTML = `<table>
-    <tr><th>ID</th><th>商品名称</th><th>类别</th><th>数量</th><th>单价(元)</th><th>金额(元)</th><th>供应商</th><th>日期</th><th>备注</th>${isAdmin() ? '<th>操作</th>' : ''}</tr>
+    <tr><th>ID</th><th>商品名称</th><th>类别</th><th>数量</th><th>单价(元)</th><th>金额(元)</th><th>供应商</th><th>日期</th><th>备注</th><th>操作</th></tr>
     ${records.map(r => `<tr>
       <td>${r.id}</td><td><strong>${r.name}</strong></td><td><span class="tag tag-blue">${r.category}</span></td>
       <td>${r.quantity}</td><td>${Number(r.unitPrice).toFixed(2)}</td><td>${(r.quantity * r.unitPrice).toFixed(2)}</td>
       <td>${r.supplier || '-'}</td><td>${r.date}</td><td>${r.remark || '-'}</td>
-      ${isAdmin() ? `<td><button class="btn btn-outline btn-sm" onclick="editInbound(${r.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delInbound(${r.id})">删除</button> <button class="btn btn-success btn-sm" onclick="printInboundReceipt(${r.id})">🖨️</button></td>` : `<td><button class="btn btn-success btn-sm" onclick="printInboundReceipt(${r.id})">🖨️</button></td>`}
+      <td>
+        <button class="btn btn-success btn-sm" onclick="printInboundReceipt(${r.id})">🖨️ 打印</button>
+        ${isAdmin() ? `<button class="btn btn-outline btn-sm" onclick="editInbound(${r.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delInbound(${r.id})">删除</button>` : ''}
+      </td>
     </tr>`).join('')}</table>`;
 }
 
@@ -651,24 +654,24 @@ function printInboundReceipt(id) {
   doPrint(`
     <div class="print-receipt">
       <div class="receipt-header">
-        <h2>入库单</h2>
+        <h2>入 库 单</h2>
         <p>入库编号：RK-${String(r.id).padStart(5,'0')}</p>
       </div>
       <div class="receipt-info">
-        <div><span>商品名称：</span>${r.name}</div>
+        <div><span>商品名称：</span><strong>${r.name}</strong></div>
         <div><span>类别：</span>${r.category}</div>
-        <div><span>数量：</span>${r.quantity}</div>
+        <div><span>数量：</span><strong>${r.quantity}</strong></div>
         <div><span>单价：</span>¥${Number(r.unitPrice).toFixed(2)}</div>
-        <div><span>金额：</span>¥${(r.quantity*r.unitPrice).toFixed(2)}</div>
+        <div><span>金额合计：</span><strong>¥${(r.quantity*r.unitPrice).toFixed(2)}</strong></div>
         <div><span>供应商：</span>${r.supplier||'-'}</div>
         <div><span>入库日期：</span>${r.date}</div>
         <div><span>打印时间：</span>${new Date().toLocaleString('zh-CN')}</div>
       </div>
-      ${r.remark ? `<p style="font-size:13px">备注：${r.remark}</p>` : ''}
+      ${r.remark ? `<p style="margin-top:12px;font-size:14px">备注：${r.remark}</p>` : ''}
       <div class="receipt-footer">
-        <div class="sign-line">制单人</div>
-        <div class="sign-line">审核人</div>
-        <div class="sign-line">收货人</div>
+        <div class="sign-line">制单人签字</div>
+        <div class="sign-line">审核人签字</div>
+        <div class="sign-line">收货人签字</div>
       </div>
     </div>`);
 }
@@ -679,22 +682,22 @@ function printOutboundReceipt(id) {
   doPrint(`
     <div class="print-receipt">
       <div class="receipt-header">
-        <h2>出库单</h2>
+        <h2>出 库 单</h2>
         <p>出库编号：CK-${String(r.id).padStart(5,'0')}</p>
       </div>
       <div class="receipt-info">
-        <div><span>商品名称：</span>${r.name}</div>
-        <div><span>出库数量：</span>${r.quantity}</div>
+        <div><span>商品名称：</span><strong>${r.name}</strong></div>
+        <div><span>出库数量：</span><strong>${r.quantity}</strong></div>
         <div><span>出库原因：</span>${r.reason||'-'}</div>
         <div><span>经办人：</span>${r.handler||'-'}</div>
         <div><span>出库日期：</span>${r.date}</div>
         <div><span>打印时间：</span>${new Date().toLocaleString('zh-CN')}</div>
       </div>
-      ${r.remark ? `<p style="font-size:13px">备注：${r.remark}</p>` : ''}
+      ${r.remark ? `<p style="margin-top:12px;font-size:14px">备注：${r.remark}</p>` : ''}
       <div class="receipt-footer">
-        <div class="sign-line">领用人</div>
-        <div class="sign-line">审核人</div>
-        <div class="sign-line">出库人</div>
+        <div class="sign-line">领用人签字</div>
+        <div class="sign-line">审核人签字</div>
+        <div class="sign-line">出库人签字</div>
       </div>
     </div>`);
 }
@@ -753,11 +756,14 @@ function renderOutboundTable(records) {
   const el = document.getElementById('outbound-table');
   if (!records.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📤</div><p>暂无出库记录</p></div>'; return; }
   el.innerHTML = `<table>
-    <tr><th>ID</th><th>商品名称</th><th>数量</th><th>出库原因</th><th>经办人</th><th>日期</th><th>备注</th>${isAdmin() ? '<th>操作</th>' : ''}</tr>
+    <tr><th>ID</th><th>商品名称</th><th>数量</th><th>出库原因</th><th>经办人</th><th>日期</th><th>备注</th><th>操作</th></tr>
     ${records.map(r => `<tr>
       <td>${r.id}</td><td><strong>${r.name}</strong></td><td>${r.quantity}</td>
       <td>${r.reason || '-'}</td><td>${r.handler || '-'}</td><td>${r.date}</td><td>${r.remark || '-'}</td>
-      ${isAdmin() ? `<td><button class="btn btn-outline btn-sm" onclick="editOutbound(${r.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delOutbound(${r.id})">删除</button> <button class="btn btn-success btn-sm" onclick="printOutboundReceipt(${r.id})">🖨️</button></td>` : `<td><button class="btn btn-success btn-sm" onclick="printOutboundReceipt(${r.id})">🖨️</button></td>`}
+      <td>
+        <button class="btn btn-success btn-sm" onclick="printOutboundReceipt(${r.id})">🖨️ 打印</button>
+        ${isAdmin() ? `<button class="btn btn-outline btn-sm" onclick="editOutbound(${r.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delOutbound(${r.id})">删除</button>` : ''}
+      </td>
     </tr>`).join('')}</table>`;
 }
 
