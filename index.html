@@ -257,6 +257,7 @@ function renderApp() {
     { id: 'summary', icon: '📈', label: '库存汇总' },
     { id: 'query', icon: '🔍', label: '单品查询' },
     { id: 'alert', icon: '⚠️', label: '库存预警' },
+    { id: 'backup', icon: '💾', label: '数据备份' },
     { id: 'users', icon: '👥', label: '权限管理', adminOnly: true },
   ];
 
@@ -284,7 +285,7 @@ function navigate(page) {
   currentPage = page;
   document.querySelector('.sidebar').classList.remove('open');
   document.querySelectorAll('.nav-item').forEach((el, i) => {
-    const pages = ['dashboard','inbound','outbound','check','summary','query','alert','users'];
+    const pages = ['dashboard','inbound','outbound','check','summary','query','alert','backup','users'];
     el.classList.toggle('active', pages[i] === page);
   });
   renderPage();
@@ -292,7 +293,7 @@ function navigate(page) {
 
 function renderPage() {
   const mc = document.getElementById('main-content');
-  const renderers = { dashboard: renderDashboard, inbound: renderInbound, outbound: renderOutbound, check: renderCheck, summary: renderSummary, query: renderQuery, alert: renderAlert, users: renderUsers };
+  const renderers = { dashboard: renderDashboard, inbound: renderInbound, outbound: renderOutbound, check: renderCheck, summary: renderSummary, query: renderQuery, alert: renderAlert, backup: renderBackup, users: renderUsers };
   mc.innerHTML = `<div class="page">${(renderers[currentPage] || renderDashboard)()}</div>`;
 }
 
@@ -792,6 +793,224 @@ function delAlertSetting(name) {
   DB.set('alerts', DB.get('alerts').filter(a => a.name !== name));
   toast('已删除');
   renderPage();
+}
+
+// ============ BACKUP ============
+function renderBackup() {
+  const keys = ['inbound','outbound','checks','alerts','users','categories'];
+  const stats = {};
+  let totalSize = 0;
+  keys.forEach(k => {
+    const data = DB.get(k);
+    stats[k] = data.length;
+    totalSize += JSON.stringify(data).length;
+  });
+  const lastBackup = localStorage.getItem('wms_lastBackup') || '从未备份';
+
+  return `
+    <div class="top-bar"><h1>💾 数据备份</h1></div>
+
+    <div class="card" style="border-left:4px solid var(--warning)">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <span style="font-size:24px">⚠️</span>
+        <div>
+          <strong>数据存储说明</strong>
+          <p style="font-size:13px;color:var(--text-light);margin-top:4px">
+            数据保存在浏览器的 localStorage 中。以下情况<strong>会导致数据丢失</strong>：<br>
+            · 清除浏览器缓存/数据 · 使用无痕模式 · 更换浏览器或设备 · 浏览器存储空间不足<br>
+            请定期导出备份文件保存到电脑！
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon blue">📥</div><div class="stat-info"><div class="stat-value">${stats.inbound}</div><div class="stat-label">入库记录</div></div></div>
+      <div class="stat-card"><div class="stat-icon yellow">📤</div><div class="stat-info"><div class="stat-value">${stats.outbound}</div><div class="stat-label">出库记录</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">📋</div><div class="stat-info"><div class="stat-value">${stats.checks}</div><div class="stat-label">盘点记录</div></div></div>
+      <div class="stat-card"><div class="stat-icon blue">💾</div><div class="stat-info"><div class="stat-value">${(totalSize/1024).toFixed(1)}KB</div><div class="stat-label">数据大小</div></div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card">
+        <div class="card-header"><h3>📤 导出备份</h3></div>
+        <p style="font-size:13px;color:var(--text-light);margin-bottom:16px">将所有数据导出为文件，保存到电脑上</p>
+        <div class="btn-group" style="flex-direction:column">
+          <button class="btn btn-primary btn-block" onclick="exportJSON()">📦 导出完整备份（JSON）</button>
+          <button class="btn btn-success btn-block" onclick="exportExcel()">📊 导出数据报表（Excel）</button>
+          <button class="btn btn-outline btn-block" onclick="exportCSV()">📄 导出库存汇总（CSV）</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-light);margin-top:12px">
+          JSON 备份可用于完整恢复数据，Excel/CSV 仅用于查看和存档
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>📥 导入恢复</h3></div>
+        <p style="font-size:13px;color:var(--text-light);margin-bottom:16px">从之前导出的 JSON 备份文件恢复数据</p>
+        <div style="border:2px dashed var(--border);border-radius:12px;padding:30px;text-align:center;cursor:pointer;transition:all .2s"
+             onclick="document.getElementById('import-file').click()"
+             onmouseover="this.style.borderColor='var(--primary)';this.style.background='#f8faff'"
+             onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent'">
+          <div style="font-size:36px;margin-bottom:8px">📂</div>
+          <p style="font-size:14px;font-weight:500">点击选择备份文件</p>
+          <p style="font-size:12px;color:var(--text-light)">仅支持 .json 格式的备份文件</p>
+          <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(this)">
+        </div>
+        <div id="import-preview" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3>📊 数据明细</h3></div>
+      <table>
+        <tr><th>数据类型</th><th>记录数</th><th>说明</th></tr>
+        <tr><td>📥 入库记录</td><td>${stats.inbound} 条</td><td>所有入库操作记录</td></tr>
+        <tr><td>📤 出库记录</td><td>${stats.outbound} 条</td><td>所有出库操作记录</td></tr>
+        <tr><td>📋 盘点记录</td><td>${stats.checks} 条</td><td>历史盘点记录</td></tr>
+        <tr><td>⚠️ 预警设置</td><td>${stats.alerts} 条</td><td>库存预警规则</td></tr>
+        <tr><td>👥 用户账号</td><td>${stats.users} 个</td><td>系统用户</td></tr>
+        <tr><td>🏷️ 商品类别</td><td>${stats.categories} 个</td><td>商品分类</td></tr>
+      </table>
+      <p style="font-size:12px;color:var(--text-light);margin-top:12px">上次备份时间：${lastBackup}</p>
+    </div>
+
+    ${isAdmin() ? `<div class="card" style="border-left:4px solid var(--danger)">
+      <div class="card-header"><h3 style="color:var(--danger)">🗑️ 危险操作</h3></div>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px">清除所有数据，操作不可撤销，请先导出备份！</p>
+      <button class="btn btn-danger" onclick="clearAllData()">清除所有数据</button>
+    </div>` : ''}`;
+}
+
+function exportJSON() {
+  const keys = ['inbound','outbound','checks','alerts','users','categories'];
+  const data = { _version: '1.0', _exportTime: new Date().toISOString(), _app: 'WMS' };
+  keys.forEach(k => { data[k] = DB.get(k); });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `仓库管理系统_备份_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  localStorage.setItem('wms_lastBackup', new Date().toLocaleString('zh-CN'));
+  toast('JSON 备份已导出，请保存到电脑');
+}
+
+function exportExcel() {
+  // Use SheetJS CDN
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload = () => doExportExcel();
+    s.onerror = () => { toast('Excel库加载失败，请检查网络', 'error'); };
+    document.head.appendChild(s);
+    toast('正在加载 Excel 组件...', 'warning');
+  } else {
+    doExportExcel();
+  }
+}
+
+function doExportExcel() {
+  try {
+    const wb = XLSX.utils.book_new();
+    // Inbound sheet
+    const inData = DB.get('inbound').map(r => ({
+      'ID': r.id, '商品名称': r.name, '类别': r.category, '数量': r.quantity,
+      '单价': r.unitPrice, '金额': r.quantity * r.unitPrice,
+      '供应商': r.supplier || '', '日期': r.date, '备注': r.remark || ''
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(inData.length ? inData : [{}]), '入库记录');
+    // Outbound sheet
+    const outData = DB.get('outbound').map(r => ({
+      'ID': r.id, '商品名称': r.name, '数量': r.quantity,
+      '出库原因': r.reason || '', '经办人': r.handler || '', '日期': r.date, '备注': r.remark || ''
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(outData.length ? outData : [{}]), '出库记录');
+    // Inventory summary
+    const invData = calcInventory().map(i => ({
+      '商品名称': i.name, '类别': i.category, '总入库': i.inQty, '总出库': i.outQty,
+      '当前库存': i.stock, '库存金额': i.stockValue.toFixed(2),
+      '预警阈值': i.threshold, '状态': i.isAlert ? '预警' : i.stock === 0 ? '缺货' : '正常'
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(invData.length ? invData : [{}]), '库存汇总');
+    // Alerts sheet
+    const alertData = DB.get('alerts').map(a => ({ '商品名称': a.name, '预警阈值': a.threshold }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(alertData.length ? alertData : [{}]), '预警设置');
+    XLSX.writeFile(wb, `仓库管理系统_报表_${new Date().toISOString().slice(0,10)}.xlsx`);
+    toast('Excel 报表已导出');
+  } catch (e) {
+    toast('导出失败: ' + e.message, 'error');
+  }
+}
+
+function importJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data._app || data._app !== 'WMS') {
+        toast('不是有效的备份文件', 'error'); return;
+      }
+      const keys = ['inbound','outbound','checks','alerts','users','categories'];
+      const preview = keys.map(k => `${k}: ${(data[k]||[]).length} 条`).join('，');
+      const exportTime = data._exportTime ? new Date(data._exportTime).toLocaleString('zh-CN') : '未知';
+
+      document.getElementById('import-preview').innerHTML = `
+        <div style="padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0">
+          <p style="font-size:13px;margin-bottom:4px"><strong>备份时间：</strong>${exportTime}</p>
+          <p style="font-size:13px;margin-bottom:8px"><strong>数据内容：</strong>${preview}</p>
+          <div class="btn-group">
+            <button class="btn btn-primary btn-sm" onclick="confirmImport()">确认恢复（覆盖当前数据）</button>
+            <button class="btn btn-outline btn-sm" onclick="cancelImport()">取消</button>
+          </div>
+        </div>`;
+      window._pendingImport = data;
+    } catch (err) {
+      toast('文件格式错误，无法解析', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function confirmImport() {
+  const data = window._pendingImport;
+  if (!data) return;
+  const keys = ['inbound','outbound','checks','alerts','users','categories'];
+  keys.forEach(k => { if (data[k]) DB.set(k, data[k]); });
+  delete window._pendingImport;
+  document.getElementById('import-preview').innerHTML = '';
+  document.getElementById('import-file').value = '';
+  toast('数据已恢复成功！');
+  // Re-login with updated users
+  const users = DB.get('users');
+  const user = users.find(u => u.username === currentUser.username);
+  if (user) {
+    currentUser = { id: user.id, username: user.username, role: user.role, displayName: user.displayName };
+    sessionStorage.setItem('wms_user', JSON.stringify(currentUser));
+  }
+  renderApp();
+}
+
+function cancelImport() {
+  delete window._pendingImport;
+  document.getElementById('import-preview').innerHTML = '';
+  document.getElementById('import-file').value = '';
+  toast('已取消导入', 'warning');
+}
+
+function clearAllData() {
+  if (!confirm('⚠️ 确定要清除所有数据吗？此操作不可撤销！')) return;
+  if (!confirm('再次确认：你已导出备份了吗？清除后数据将无法恢复！')) return;
+  const keys = ['inbound','outbound','checks','alerts','users','categories'];
+  keys.forEach(k => DB.set(k, []));
+  // Re-init defaults
+  DB.set('users', [
+    { id: 1, username: 'admin', password: 'admin123', role: 'admin', displayName: '管理员' },
+    { id: 2, username: 'user', password: 'user123', role: 'user', displayName: '普通用户' }
+  ]);
+  DB.set('categories', ['电子产品','办公用品','食品饮料','五金工具','服装纺织','其他']);
+  toast('所有数据已清除', 'warning');
+  renderApp();
 }
 
 // ============ USERS ============
