@@ -116,6 +116,27 @@ tr:hover td{background:#f8fafc}
   .stats-grid{grid-template-columns:1fr}
 }
 
+/* Print styles */
+@media print{
+  body{background:#fff!important}
+  .sidebar,.menu-toggle,.top-bar,.filter-bar,.btn-group,.btn,.no-print{display:none!important}
+  .main-content{margin:0!important;padding:0!important}
+  .card{box-shadow:none!important;border:1px solid #ccc!important;break-inside:avoid}
+  .print-area{display:block!important}
+  table{font-size:12px}
+  th{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .tag{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+.print-area{display:none}
+.print-receipt{max-width:800px;margin:0 auto;padding:20px}
+.print-receipt .receipt-header{text-align:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #000}
+.print-receipt .receipt-header h2{font-size:20px;margin-bottom:4px}
+.print-receipt .receipt-header p{font-size:13px;color:#666}
+.print-receipt .receipt-info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:14px}
+.print-receipt .receipt-info span{color:#666}
+.print-receipt .receipt-footer{margin-top:24px;padding-top:16px;border-top:1px solid #ccc;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;font-size:14px;text-align:center}
+.print-receipt .receipt-footer .sign-line{border-top:1px solid #000;padding-top:8px;margin-top:32px}
+
 /* Fade transition */
 .page{animation:fadeIn .2s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -252,6 +273,7 @@ function renderApp() {
   const navItems = [
     { id: 'dashboard', icon: '📊', label: '首页概览' },
     { id: 'inbound', icon: '📥', label: '入库管理' },
+    { id: 'invoice', icon: '🧾', label: '发票入库' },
     { id: 'outbound', icon: '📤', label: '出库管理' },
     { id: 'check', icon: '📋', label: '库存盘点' },
     { id: 'summary', icon: '📈', label: '库存汇总' },
@@ -285,7 +307,7 @@ function navigate(page) {
   currentPage = page;
   document.querySelector('.sidebar').classList.remove('open');
   document.querySelectorAll('.nav-item').forEach((el, i) => {
-    const pages = ['dashboard','inbound','outbound','check','summary','query','alert','backup','users'];
+    const pages = ['dashboard','inbound','invoice','outbound','check','summary','query','alert','backup','users'];
     el.classList.toggle('active', pages[i] === page);
   });
   renderPage();
@@ -293,7 +315,7 @@ function navigate(page) {
 
 function renderPage() {
   const mc = document.getElementById('main-content');
-  const renderers = { dashboard: renderDashboard, inbound: renderInbound, outbound: renderOutbound, check: renderCheck, summary: renderSummary, query: renderQuery, alert: renderAlert, backup: renderBackup, users: renderUsers };
+  const renderers = { dashboard: renderDashboard, inbound: renderInbound, invoice: renderInvoice, outbound: renderOutbound, check: renderCheck, summary: renderSummary, query: renderQuery, alert: renderAlert, backup: renderBackup, users: renderUsers };
   mc.innerHTML = `<div class="page">${(renderers[currentPage] || renderDashboard)()}</div>`;
 }
 
@@ -394,7 +416,7 @@ function renderInboundTable(records) {
       <td>${r.id}</td><td><strong>${r.name}</strong></td><td><span class="tag tag-blue">${r.category}</span></td>
       <td>${r.quantity}</td><td>${Number(r.unitPrice).toFixed(2)}</td><td>${(r.quantity * r.unitPrice).toFixed(2)}</td>
       <td>${r.supplier || '-'}</td><td>${r.date}</td><td>${r.remark || '-'}</td>
-      ${isAdmin() ? `<td><button class="btn btn-outline btn-sm" onclick="editInbound(${r.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delInbound(${r.id})">删除</button></td>` : ''}
+      ${isAdmin() ? `<td><button class="btn btn-outline btn-sm" onclick="editInbound(${r.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delInbound(${r.id})">删除</button> <button class="btn btn-success btn-sm" onclick="printInboundReceipt(${r.id})">🖨️</button></td>` : `<td><button class="btn btn-success btn-sm" onclick="printInboundReceipt(${r.id})">🖨️</button></td>`}
     </tr>`).join('')}</table>`;
 }
 
@@ -449,6 +471,258 @@ function delInbound(id) {
   renderPage();
 }
 
+// ============ INVOICE ============
+function renderInvoice() {
+  const cats = DB.get('categories');
+  const invoices = DB.get('invoices');
+  return `
+    <div class="top-bar"><h1>🧾 发票入库</h1>
+      ${isAdmin() ? '<button class="btn btn-primary" onclick="showInvoiceModal()">+ 发票入库</button>' : ''}
+    </div>
+    <div class="card" style="border-left:4px solid var(--primary)">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <span style="font-size:20px">💡</span>
+        <div style="font-size:13px;color:var(--text-light)">
+          输入发票信息后，系统自动拆分商品明细并批量入库。支持一张发票含多个商品。
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>发票记录</h3></div>
+      ${invoices.length ? `<div class="table-wrap"><table>
+        <tr><th>发票号码</th><th>发票类型</th><th>供应商</th><th>开票日期</th><th>金额合计</th><th>商品数</th><th>入库时间</th><th>操作</th></tr>
+        ${invoices.map(inv => `<tr>
+          <td><strong>${inv.invoiceNo}</strong></td>
+          <td><span class="tag tag-blue">${inv.invoiceType}</span></td>
+          <td>${inv.supplier}</td><td>${inv.invoiceDate}</td>
+          <td>¥${inv.items.reduce((s,i)=>s+i.quantity*i.unitPrice,0).toFixed(2)}</td>
+          <td>${inv.items.length} 种</td><td>${inv.createdAt ? new Date(inv.createdAt).toLocaleString('zh-CN') : '-'}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" onclick="viewInvoiceDetail(${inv.id})">详情</button>
+            <button class="btn btn-success btn-sm" onclick="printInvoiceReceipt(${inv.id})">🖨️ 打印</button>
+            ${isAdmin() ? ` <button class="btn btn-danger btn-sm" onclick="delInvoice(${inv.id})">删除</button>` : ''}
+          </td>
+        </tr>`).join('')}</table></div>` : '<div class="empty-state"><div class="icon">🧾</div><p>暂无发票记录</p></div>'}
+    </div>`;
+}
+
+function showInvoiceModal() {
+  const cats = DB.get('categories');
+  showModal('发票入库', `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group"><label>发票号码 *</label><input type="text" id="inv-no" placeholder="如：FP20240603001"></div>
+      <div class="form-group"><label>发票类型</label>
+        <select id="inv-type">
+          <option>增值税专用发票</option><option>增值税普通发票</option><option>电子发票</option><option>收据</option><option>其他</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group"><label>供应商 *</label><input type="text" id="inv-supplier" placeholder="开票方名称"></div>
+      <div class="form-group"><label>开票日期 *</label><input type="date" id="inv-date" value="${new Date().toISOString().slice(0,10)}"></div>
+    </div>
+    <div class="form-group"><label>备注</label><input type="text" id="inv-remark" placeholder="选填"></div>
+    <hr style="margin:16px 0;border-color:var(--border)">
+    <h4 style="margin-bottom:12px">商品明细 <button class="btn btn-outline btn-sm" onclick="addInvoiceItem()">+ 添加商品</button></h4>
+    <div id="invoice-items">
+      <div class="invoice-item" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px;padding:8px;background:#f8fafc;border-radius:8px">
+        <div class="form-group" style="margin:0"><label style="font-size:12px">商品名称</label><input type="text" class="inv-item-name" placeholder="商品名称"></div>
+        <div class="form-group" style="margin:0"><label style="font-size:12px">类别</label><select class="inv-item-cat">${cats.map(c=>`<option>${c}</option>`).join('')}</select></div>
+        <div class="form-group" style="margin:0"><label style="font-size:12px">数量</label><input type="number" class="inv-item-qty" min="1" placeholder="0"></div>
+        <div class="form-group" style="margin:0"><label style="font-size:12px">单价</label><input type="number" class="inv-item-price" step="0.01" min="0" placeholder="0.00"></div>
+        <button class="btn btn-danger btn-sm" onclick="this.closest('.invoice-item').remove()" style="margin-bottom:0">✕</button>
+      </div>
+    </div>
+  `, () => {
+    const invoiceNo = document.getElementById('inv-no').value.trim();
+    const invoiceType = document.getElementById('inv-type').value;
+    const supplier = document.getElementById('inv-supplier').value.trim();
+    const invoiceDate = document.getElementById('inv-date').value;
+    const remark = document.getElementById('inv-remark').value.trim();
+    if (!invoiceNo || !supplier || !invoiceDate) { toast('请填写发票号码、供应商和日期', 'error'); return false; }
+    const itemEls = document.querySelectorAll('.invoice-item');
+    const items = [];
+    let valid = true;
+    itemEls.forEach(el => {
+      const name = el.querySelector('.inv-item-name').value.trim();
+      const category = el.querySelector('.inv-item-cat').value;
+      const quantity = Number(el.querySelector('.inv-item-qty').value);
+      const unitPrice = Number(el.querySelector('.inv-item-price').value);
+      if (!name || !quantity || !unitPrice) { valid = false; return; }
+      items.push({ name, category, quantity, unitPrice });
+    });
+    if (!valid || !items.length) { toast('请至少填写一条完整的商品明细', 'error'); return false; }
+    // Save invoice
+    const invoices = DB.get('invoices');
+    const invId = DB.nextId('invoices');
+    invoices.push({ id: invId, invoiceNo, invoiceType, supplier, invoiceDate, remark, items, createdAt: Date.now() });
+    DB.set('invoices', invoices);
+    // Auto-create inbound records
+    const inbound = DB.get('inbound');
+    items.forEach(item => {
+      inbound.push({
+        id: DB.nextId('inbound'), name: item.name, category: item.category,
+        quantity: item.quantity, unitPrice: item.unitPrice, supplier, date: invoiceDate,
+        remark: `发票号: ${invoiceNo}${remark ? ' ' + remark : ''}`, createdAt: Date.now()
+      });
+      DB.set('inbound', inbound);
+    });
+    toast(`发票入库成功！共 ${items.length} 种商品已入库`);
+    renderPage();
+    return true;
+  });
+}
+
+function addInvoiceItem() {
+  const cats = DB.get('categories');
+  const container = document.getElementById('invoice-items');
+  const div = document.createElement('div');
+  div.className = 'invoice-item';
+  div.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px;padding:8px;background:#f8fafc;border-radius:8px';
+  div.innerHTML = `
+    <div class="form-group" style="margin:0"><label style="font-size:12px">商品名称</label><input type="text" class="inv-item-name" placeholder="商品名称"></div>
+    <div class="form-group" style="margin:0"><label style="font-size:12px">类别</label><select class="inv-item-cat">${cats.map(c=>`<option>${c}</option>`).join('')}</select></div>
+    <div class="form-group" style="margin:0"><label style="font-size:12px">数量</label><input type="number" class="inv-item-qty" min="1" placeholder="0"></div>
+    <div class="form-group" style="margin:0"><label style="font-size:12px">单价</label><input type="number" class="inv-item-price" step="0.01" min="0" placeholder="0.00"></div>
+    <button class="btn btn-danger btn-sm" onclick="this.closest('.invoice-item').remove()" style="margin-bottom:0">✕</button>`;
+  container.appendChild(div);
+}
+
+function viewInvoiceDetail(id) {
+  const inv = DB.get('invoices').find(i => i.id === id);
+  if (!inv) return;
+  const total = inv.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+  showModal(`发票详情 - ${inv.invoiceNo}`, `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:14px">
+      <div><span style="color:var(--text-light)">发票号码：</span>${inv.invoiceNo}</div>
+      <div><span style="color:var(--text-light)">发票类型：</span>${inv.invoiceType}</div>
+      <div><span style="color:var(--text-light)">供应商：</span>${inv.supplier}</div>
+      <div><span style="color:var(--text-light)">开票日期：</span>${inv.invoiceDate}</div>
+      ${inv.remark ? `<div style="grid-column:1/-1"><span style="color:var(--text-light)">备注：</span>${inv.remark}</div>` : ''}
+    </div>
+    <table>
+      <tr><th>商品名称</th><th>类别</th><th>数量</th><th>单价</th><th>金额</th></tr>
+      ${inv.items.map(i => `<tr><td><strong>${i.name}</strong></td><td><span class="tag tag-blue">${i.category}</span></td><td>${i.quantity}</td><td>¥${Number(i.unitPrice).toFixed(2)}</td><td>¥${(i.quantity*i.unitPrice).toFixed(2)}</td></tr>`).join('')}
+      <tr style="font-weight:700"><td colspan="4" style="text-align:right">合计</td><td>¥${total.toFixed(2)}</td></tr>
+    </table>`);
+}
+
+function delInvoice(id) {
+  if (!confirm('确定要删除这条发票记录吗？（已入库的记录不会删除）')) return;
+  DB.set('invoices', DB.get('invoices').filter(i => i.id !== id));
+  toast('已删除');
+  renderPage();
+}
+
+// ============ PRINT ============
+function printInvoiceReceipt(id) {
+  const inv = DB.get('invoices').find(i => i.id === id);
+  if (!inv) return;
+  const total = inv.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+  doPrint(`
+    <div class="print-receipt">
+      <div class="receipt-header">
+        <h2>入库单</h2>
+        <p>依据发票号：${inv.invoiceNo}</p>
+      </div>
+      <div class="receipt-info">
+        <div><span>供应商：</span>${inv.supplier}</div>
+        <div><span>发票类型：</span>${inv.invoiceType}</div>
+        <div><span>开票日期：</span>${inv.invoiceDate}</div>
+        <div><span>打印时间：</span>${new Date().toLocaleString('zh-CN')}</div>
+      </div>
+      <table>
+        <tr><th>序号</th><th>商品名称</th><th>类别</th><th>数量</th><th>单价(元)</th><th>金额(元)</th></tr>
+        ${inv.items.map((item, i) => `<tr><td>${i+1}</td><td>${item.name}</td><td>${item.category}</td><td>${item.quantity}</td><td>${Number(item.unitPrice).toFixed(2)}</td><td>${(item.quantity*item.unitPrice).toFixed(2)}</td></tr>`).join('')}
+        <tr style="font-weight:700"><td colspan="5" style="text-align:right">合计</td><td>¥${total.toFixed(2)}</td></tr>
+      </table>
+      ${inv.remark ? `<p style="margin-top:12px;font-size:13px">备注：${inv.remark}</p>` : ''}
+      <div class="receipt-footer">
+        <div class="sign-line">制单人</div>
+        <div class="sign-line">审核人</div>
+        <div class="sign-line">收货人</div>
+      </div>
+    </div>`);
+}
+
+function printInboundReceipt(id) {
+  const r = DB.get('inbound').find(i => i.id === id);
+  if (!r) return;
+  doPrint(`
+    <div class="print-receipt">
+      <div class="receipt-header">
+        <h2>入库单</h2>
+        <p>入库编号：RK-${String(r.id).padStart(5,'0')}</p>
+      </div>
+      <div class="receipt-info">
+        <div><span>商品名称：</span>${r.name}</div>
+        <div><span>类别：</span>${r.category}</div>
+        <div><span>数量：</span>${r.quantity}</div>
+        <div><span>单价：</span>¥${Number(r.unitPrice).toFixed(2)}</div>
+        <div><span>金额：</span>¥${(r.quantity*r.unitPrice).toFixed(2)}</div>
+        <div><span>供应商：</span>${r.supplier||'-'}</div>
+        <div><span>入库日期：</span>${r.date}</div>
+        <div><span>打印时间：</span>${new Date().toLocaleString('zh-CN')}</div>
+      </div>
+      ${r.remark ? `<p style="font-size:13px">备注：${r.remark}</p>` : ''}
+      <div class="receipt-footer">
+        <div class="sign-line">制单人</div>
+        <div class="sign-line">审核人</div>
+        <div class="sign-line">收货人</div>
+      </div>
+    </div>`);
+}
+
+function printOutboundReceipt(id) {
+  const r = DB.get('outbound').find(i => i.id === id);
+  if (!r) return;
+  doPrint(`
+    <div class="print-receipt">
+      <div class="receipt-header">
+        <h2>出库单</h2>
+        <p>出库编号：CK-${String(r.id).padStart(5,'0')}</p>
+      </div>
+      <div class="receipt-info">
+        <div><span>商品名称：</span>${r.name}</div>
+        <div><span>出库数量：</span>${r.quantity}</div>
+        <div><span>出库原因：</span>${r.reason||'-'}</div>
+        <div><span>经办人：</span>${r.handler||'-'}</div>
+        <div><span>出库日期：</span>${r.date}</div>
+        <div><span>打印时间：</span>${new Date().toLocaleString('zh-CN')}</div>
+      </div>
+      ${r.remark ? `<p style="font-size:13px">备注：${r.remark}</p>` : ''}
+      <div class="receipt-footer">
+        <div class="sign-line">领用人</div>
+        <div class="sign-line">审核人</div>
+        <div class="sign-line">出库人</div>
+      </div>
+    </div>`);
+}
+
+function doPrint(content) {
+  const win = window.open('', '_blank', 'width=800,height=600');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>打印单据</title>
+    <style>
+      body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1e293b;line-height:1.6;padding:20px}
+      table{width:100%;border-collapse:collapse;margin:16px 0}
+      th,td{border:1px solid #ccc;padding:8px 12px;text-align:left;font-size:14px}
+      th{background:#f3f4f6;font-weight:600}
+      .print-receipt{max-width:800px;margin:0 auto}
+      .receipt-header{text-align:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #000}
+      .receipt-header h2{font-size:22px;margin-bottom:4px}
+      .receipt-header p{font-size:13px;color:#666}
+      .receipt-info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:14px}
+      .receipt-info span{color:#666}
+      .receipt-footer{margin-top:32px;padding-top:16px;border-top:1px solid #ccc;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;font-size:14px;text-align:center}
+      .receipt-footer .sign-line{border-top:1px solid #000;padding-top:8px;margin-top:40px}
+      @media print{body{padding:0}@page{margin:15mm}}
+    </style></head><body>
+    ${content}
+    <script>setTimeout(()=>{window.print();window.close()},500)<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
 // ============ OUTBOUND ============
 function renderOutbound() {
   return `
@@ -483,7 +757,7 @@ function renderOutboundTable(records) {
     ${records.map(r => `<tr>
       <td>${r.id}</td><td><strong>${r.name}</strong></td><td>${r.quantity}</td>
       <td>${r.reason || '-'}</td><td>${r.handler || '-'}</td><td>${r.date}</td><td>${r.remark || '-'}</td>
-      ${isAdmin() ? `<td><button class="btn btn-outline btn-sm" onclick="editOutbound(${r.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delOutbound(${r.id})">删除</button></td>` : ''}
+      ${isAdmin() ? `<td><button class="btn btn-outline btn-sm" onclick="editOutbound(${r.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delOutbound(${r.id})">删除</button> <button class="btn btn-success btn-sm" onclick="printOutboundReceipt(${r.id})">🖨️</button></td>` : `<td><button class="btn btn-success btn-sm" onclick="printOutboundReceipt(${r.id})">🖨️</button></td>`}
     </tr>`).join('')}</table>`;
 }
 
@@ -797,7 +1071,7 @@ function delAlertSetting(name) {
 
 // ============ BACKUP ============
 function renderBackup() {
-  const keys = ['inbound','outbound','checks','alerts','users','categories'];
+  const keys = ['inbound','outbound','checks','alerts','users','categories','invoices'];
   const stats = {};
   let totalSize = 0;
   keys.forEach(k => {
@@ -828,6 +1102,7 @@ function renderBackup() {
       <div class="stat-card"><div class="stat-icon blue">📥</div><div class="stat-info"><div class="stat-value">${stats.inbound}</div><div class="stat-label">入库记录</div></div></div>
       <div class="stat-card"><div class="stat-icon yellow">📤</div><div class="stat-info"><div class="stat-value">${stats.outbound}</div><div class="stat-label">出库记录</div></div></div>
       <div class="stat-card"><div class="stat-icon green">📋</div><div class="stat-info"><div class="stat-value">${stats.checks}</div><div class="stat-label">盘点记录</div></div></div>
+      <div class="stat-card"><div class="stat-icon yellow">🧾</div><div class="stat-info"><div class="stat-value">${stats.invoices||0}</div><div class="stat-label">发票记录</div></div></div>
       <div class="stat-card"><div class="stat-icon blue">💾</div><div class="stat-info"><div class="stat-value">${(totalSize/1024).toFixed(1)}KB</div><div class="stat-label">数据大小</div></div></div>
     </div>
 
@@ -867,6 +1142,7 @@ function renderBackup() {
         <tr><td>📥 入库记录</td><td>${stats.inbound} 条</td><td>所有入库操作记录</td></tr>
         <tr><td>📤 出库记录</td><td>${stats.outbound} 条</td><td>所有出库操作记录</td></tr>
         <tr><td>📋 盘点记录</td><td>${stats.checks} 条</td><td>历史盘点记录</td></tr>
+        <tr><td>🧾 发票记录</td><td>${stats.invoices||0} 条</td><td>发票入库记录</td></tr>
         <tr><td>⚠️ 预警设置</td><td>${stats.alerts} 条</td><td>库存预警规则</td></tr>
         <tr><td>👥 用户账号</td><td>${stats.users} 个</td><td>系统用户</td></tr>
         <tr><td>🏷️ 商品类别</td><td>${stats.categories} 个</td><td>商品分类</td></tr>
@@ -882,7 +1158,7 @@ function renderBackup() {
 }
 
 function exportJSON() {
-  const keys = ['inbound','outbound','checks','alerts','users','categories'];
+  const keys = ['inbound','outbound','checks','alerts','users','categories','invoices'];
   const data = { _version: '1.0', _exportTime: new Date().toISOString(), _app: 'WMS' };
   keys.forEach(k => { data[k] = DB.get(k); });
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -934,6 +1210,16 @@ function doExportExcel() {
     // Alerts sheet
     const alertData = DB.get('alerts').map(a => ({ '商品名称': a.name, '预警阈值': a.threshold }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(alertData.length ? alertData : [{}]), '预警设置');
+    // Invoices sheet
+    const invData = [];
+    DB.get('invoices').forEach(inv => {
+      inv.items.forEach(item => {
+        invData.push({ '发票号码': inv.invoiceNo, '发票类型': inv.invoiceType, '供应商': inv.supplier,
+          '商品名称': item.name, '类别': item.category, '数量': item.quantity, '单价': item.unitPrice,
+          '金额': (item.quantity * item.unitPrice).toFixed(2), '开票日期': inv.invoiceDate });
+      });
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(invData.length ? invData : [{}]), '发票记录');
     XLSX.writeFile(wb, `仓库管理系统_报表_${new Date().toISOString().slice(0,10)}.xlsx`);
     toast('Excel 报表已导出');
   } catch (e) {
@@ -951,7 +1237,7 @@ function importJSON(input) {
       if (!data._app || data._app !== 'WMS') {
         toast('不是有效的备份文件', 'error'); return;
       }
-      const keys = ['inbound','outbound','checks','alerts','users','categories'];
+      const keys = ['inbound','outbound','checks','alerts','users','categories','invoices'];
       const preview = keys.map(k => `${k}: ${(data[k]||[]).length} 条`).join('，');
       const exportTime = data._exportTime ? new Date(data._exportTime).toLocaleString('zh-CN') : '未知';
 
@@ -975,7 +1261,7 @@ function importJSON(input) {
 function confirmImport() {
   const data = window._pendingImport;
   if (!data) return;
-  const keys = ['inbound','outbound','checks','alerts','users','categories'];
+  const keys = ['inbound','outbound','checks','alerts','users','categories','invoices'];
   keys.forEach(k => { if (data[k]) DB.set(k, data[k]); });
   delete window._pendingImport;
   document.getElementById('import-preview').innerHTML = '';
@@ -1001,7 +1287,7 @@ function cancelImport() {
 function clearAllData() {
   if (!confirm('⚠️ 确定要清除所有数据吗？此操作不可撤销！')) return;
   if (!confirm('再次确认：你已导出备份了吗？清除后数据将无法恢复！')) return;
-  const keys = ['inbound','outbound','checks','alerts','users','categories'];
+  const keys = ['inbound','outbound','checks','alerts','users','categories','invoices'];
   keys.forEach(k => DB.set(k, []));
   // Re-init defaults
   DB.set('users', [
