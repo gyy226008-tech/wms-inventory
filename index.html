@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>仓库出入库管理系统</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--primary:#4f46e5;--primary-light:#818cf8;--primary-dark:#3730a3;--danger:#ef4444;--warning:#f59e0b;--success:#10b981;--bg:#f1f5f9;--card:#fff;--text:#1e293b;--text-light:#64748b;--border:#e2e8f0;--sidebar-w:240px;--radius:12px}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+a{color:var(--primary);text-decoration:none}
+
+/* Login */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%)}
+.login-box{background:#fff;border-radius:var(--radius);padding:40px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+.login-box h1{text-align:center;margin-bottom:8px;font-size:22px;color:var(--primary-dark)}
+.login-box p{text-align:center;color:var(--text-light);margin-bottom:24px;font-size:14px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;margin-bottom:6px;font-size:14px;font-weight:500}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;transition:border-color .2s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,.1)}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition:all .2s;gap:6px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{background:#dc2626}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover{background:#059669}
+.btn-warning{background:var(--warning);color:#fff}
+.btn-warning:hover{background:#d97706}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-block{width:100%}
+.btn-group{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Layout */
+.app-layout{display:flex;min-height:100vh}
+.sidebar{width:var(--sidebar-w);background:var(--primary-dark);color:#fff;padding:0;position:fixed;top:0;left:0;bottom:0;z-index:100;transition:transform .3s}
+.sidebar-header{padding:20px;border-bottom:1px solid rgba(255,255,255,.1)}
+.sidebar-header h2{font-size:16px;font-weight:600}
+.sidebar-header small{font-size:12px;opacity:.7}
+.sidebar-nav{padding:12px 0}
+.nav-item{display:flex;align-items:center;padding:12px 20px;color:rgba(255,255,255,.7);cursor:pointer;transition:all .2s;font-size:14px;gap:10px}
+.nav-item:hover{background:rgba(255,255,255,.1);color:#fff}
+.nav-item.active{background:rgba(255,255,255,.15);color:#fff;border-right:3px solid #fff}
+.nav-item .icon{width:20px;text-align:center}
+.main-content{flex:1;margin-left:var(--sidebar-w);padding:24px}
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.top-bar h1{font-size:20px;font-weight:600}
+.user-info{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--text-light)}
+.user-info .badge{background:var(--primary);color:#fff;padding:2px 8px;border-radius:20px;font-size:11px}
+
+/* Cards */
+.card{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:16px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.card-header h3{font-size:16px;font-weight:600}
+
+/* Dashboard stats */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);display:flex;align-items:center;gap:16px}
+.stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.stat-icon.blue{background:#eef2ff;color:var(--primary)}
+.stat-icon.green{background:#ecfdf5;color:var(--success)}
+.stat-icon.yellow{background:#fffbeb;color:var(--warning)}
+.stat-icon.red{background:#fef2f2;color:var(--danger)}
+.stat-info .stat-value{font-size:24px;font-weight:700;line-height:1.2}
+.stat-info .stat-label{font-size:13px;color:var(--text-light)}
+
+/* Table */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{background:#f8fafc;padding:12px;text-align:left;font-weight:600;color:var(--text-light);border-bottom:2px solid var(--border);white-space:nowrap}
+td{padding:12px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:500}
+.tag-green{background:#ecfdf5;color:#059669}
+.tag-red{background:#fef2f2;color:#dc2626}
+.tag-yellow{background:#fffbeb;color:#d97706}
+.tag-blue{background:#eef2ff;color:var(--primary)}
+
+/* Modal */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:#fff;border-radius:var(--radius);width:100%;max-width:520px;max-height:90vh;overflow-y:auto;padding:24px}
+.modal h3{margin-bottom:16px;font-size:18px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+
+/* Filter bar */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.filter-bar input,.filter-bar select{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px}
+.filter-bar input{min-width:180px}
+
+/* Alert */
+.alert-list{list-style:none}
+.alert-item{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:8px;margin-bottom:8px;background:#fef2f2;border-left:4px solid var(--danger)}
+.alert-item .name{font-weight:600;color:var(--danger)}
+.alert-item .detail{font-size:13px;color:#991b1b}
+
+/* Empty state */
+.empty-state{text-align:center;padding:40px 20px;color:var(--text-light)}
+.empty-state .icon{font-size:48px;margin-bottom:12px;opacity:.5}
+.empty-state p{font-size:14px}
+
+/* Responsive */
+.menu-toggle{display:none;position:fixed;top:12px;left:12px;z-index:150;background:var(--primary);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:18px;cursor:pointer}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main-content{margin-left:0}
+  .menu-toggle{display:block}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .filter-bar{flex-direction:column;align-items:stretch}
+  .filter-bar input{min-width:100%}
+}
+@media(max-width:480px){
+  .stats-grid{grid-template-columns:1fr}
+}
+
+/* Fade transition */
+.page{animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* Toast */
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:999;animation:slideIn .3s ease;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.toast.success{background:var(--success)}
+.toast.error{background:var(--danger)}
+.toast.warning{background:var(--warning)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+// ============ DATA LAYER ============
+const DB = {
+  get(key) { try { return JSON.parse(localStorage.getItem('wms_' + key)) || [] } catch { return [] } },
+  set(key, val) { localStorage.setItem('wms_' + key, JSON.stringify(val)) },
+  getObj(key) { try { return JSON.parse(localStorage.getItem('wms_' + key)) || {} } catch { return {} } },
+  setObj(key, val) { localStorage.setItem('wms_' + key, JSON.stringify(val)) },
+  nextId(key) {
+    const items = this.get(key);
+    return items.length ? Math.max(...items.map(i => i.id)) + 1 : 1;
+  }
+};
+
+// Init default users
+if (!DB.get('users').length) {
+  DB.set('users', [
+    { id: 1, username: 'admin', password: 'admin123', role: 'admin', displayName: '管理员' },
+    { id: 2, username: 'user', password: 'user123', role: 'user', displayName: '普通用户' }
+  ]);
+}
+// Init sample categories
+if (!DB.get('categories').length) {
+  DB.set('categories', ['电子产品','办公用品','食品饮料','五金工具','服装纺织','其他']);
+}
+
+// ============ AUTH ============
+let currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || null;
+
+function login(username, password) {
+  const users = DB.get('users');
+  const user = users.find(u => u.username === username && u.password === password);
+  if (user) {
+    currentUser = { id: user.id, username: user.username, role: user.role, displayName: user.displayName };
+    sessionStorage.setItem('wms_user', JSON.stringify(currentUser));
+    return true;
+  }
+  return false;
+}
+
+function logout() {
+  currentUser = null;
+  sessionStorage.removeItem('wms_user');
+  renderLogin();
+}
+
+function isAdmin() { return currentUser && currentUser.role === 'admin'; }
+
+// ============ INVENTORY CALC ============
+function calcInventory() {
+  const ins = DB.get('inbound');
+  const outs = DB.get('outbound');
+  const alerts = DB.get('alerts');
+  const map = {};
+  ins.forEach(r => {
+    if (!map[r.name]) map[r.name] = { name: r.name, category: r.category, inQty: 0, outQty: 0, totalCost: 0 };
+    map[r.name].inQty += Number(r.quantity);
+    map[r.name].totalCost += Number(r.quantity) * Number(r.unitPrice);
+  });
+  outs.forEach(r => {
+    if (!map[r.name]) map[r.name] = { name: r.name, category: '未知', inQty: 0, outQty: 0, totalCost: 0 };
+    map[r.name].outQty += Number(r.quantity);
+  });
+  return Object.values(map).map(item => {
+    item.stock = item.inQty - item.outQty;
+    item.stockValue = item.stock * (item.inQty > 0 ? item.totalCost / item.inQty : 0);
+    const alert = alerts.find(a => a.name === item.name);
+    item.threshold = alert ? alert.threshold : 0;
+    item.isAlert = alert && item.stock <= alert.threshold;
+    return item;
+  });
+}
+
+// ============ TOAST ============
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+// ============ RENDER ============
+let currentPage = 'dashboard';
+
+function renderLogin() {
+  document.getElementById('app').innerHTML = `
+    <div class="login-wrap">
+      <div class="login-box">
+        <h1>📦 仓库管理系统</h1>
+        <p>出入库管理 · 库存盘点 · 智能预警</p>
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="login-user" placeholder="请输入用户名" value="admin">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="login-pass" placeholder="请输入密码" value="admin123">
+        </div>
+        <div id="login-error" style="color:var(--danger);font-size:13px;margin-bottom:8px;display:none">用户名或密码错误</div>
+        <button class="btn btn-primary btn-block" onclick="doLogin()">登 录</button>
+        <p style="margin-top:16px;font-size:12px;color:var(--text-light);text-align:center">
+          管理员: admin / admin123<br>普通用户: user / user123
+        </p>
+      </div>
+    </div>`;
+  document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+}
+
+function doLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value.trim();
+  if (login(u, p)) { renderApp(); } else {
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
+
+function renderApp() {
+  const navItems = [
+    { id: 'dashboard', icon: '📊', label: '首页概览' },
+    { id: 'inbound', icon: '📥', label: '入库管理' },
+    { id: 'outbound', icon: '📤', label: '出库管理' },
+    { id: 'check', icon: '📋', label: '库存盘点' },
+    { id: 'summary', icon: '📈', label: '库存汇总' },
+    { id: 'query', icon: '🔍', label: '单品查询' },
+    { id: 'alert', icon: '⚠️', label: '库存预警' },
+    { id: 'users', icon: '👥', label: '权限管理', adminOnly: true },
+  ];
+
+  document.getElementById('app').innerHTML = `
+    <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h2>📦 仓库管理</h2>
+          <small>WMS v1.0</small>
+        </div>
+        <nav class="sidebar-nav">
+          ${navItems.filter(n => !n.adminOnly || isAdmin()).map(n => `
+            <div class="nav-item ${currentPage === n.id ? 'active' : ''}" onclick="navigate('${n.id}')">
+              <span class="icon">${n.icon}</span>${n.label}
+            </div>`).join('')}
+        </nav>
+      </aside>
+      <main class="main-content" id="main-content"></main>
+    </div>`;
+  renderPage();
+}
+
+function navigate(page) {
+  currentPage = page;
+  document.querySelector('.sidebar').classList.remove('open');
+  document.querySelectorAll('.nav-item').forEach((el, i) => {
+    const pages = ['dashboard','inbound','outbound','check','summary','query','alert','users'];
+    el.classList.toggle('active', pages[i] === page);
+  });
+  renderPage();
+}
+
+function renderPage() {
+  const mc = document.getElementById('main-content');
+  const renderers = { dashboard: renderDashboard, inbound: renderInbound, outbound: renderOutbound, check: renderCheck, summary: renderSummary, query: renderQuery, alert: renderAlert, users: renderUsers };
+  mc.innerHTML = `<div class="page">${(renderers[currentPage] || renderDashboard)()}</div>`;
+}
+
+// ============ DASHBOARD ============
+function renderDashboard() {
+  const inv = calcInventory();
+  const ins = DB.get('inbound');
+  const outs = DB.get('outbound');
+  const today = new Date().toISOString().slice(0, 10);
+  const todayIn = ins.filter(r => r.date === today).reduce((s, r) => s + Number(r.quantity), 0);
+  const todayOut = outs.filter(r => r.date === today).reduce((s, r) => s + Number(r.quantity), 0);
+  const alertCount = inv.filter(i => i.isAlert).length;
+  const totalValue = inv.reduce((s, i) => s + i.stockValue, 0);
+  const recentIn = ins.slice(-5).reverse();
+  const recentOut = outs.slice(-5).reverse();
+
+  return `
+    <div class="top-bar">
+      <h1>首页概览</h1>
+      <div class="user-info">
+        <span>${currentUser.displayName}</span>
+        <span class="badge">${currentUser.role === 'admin' ? '管理员' : '普通用户'}</span>
+        <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon blue">📦</div>
+        <div class="stat-info"><div class="stat-value">${inv.length}</div><div class="stat-label">库存品类数</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">💰</div>
+        <div class="stat-info"><div class="stat-value">¥${totalValue.toFixed(0)}</div><div class="stat-label">库存总金额</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon blue">📥</div>
+        <div class="stat-info"><div class="stat-value">${todayIn}</div><div class="stat-label">今日入库</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon yellow">📤</div>
+        <div class="stat-info"><div class="stat-value">${todayOut}</div><div class="stat-label">今日出库</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon ${alertCount > 0 ? 'red' : 'green'}">⚠️</div>
+        <div class="stat-info"><div class="stat-value">${alertCount}</div><div class="stat-label">预警商品</div></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card">
+        <div class="card-header"><h3>📥 最近入库</h3></div>
+        ${recentIn.length ? `<div class="table-wrap"><table><tr><th>商品</th><th>数量</th><th>日期</th></tr>${recentIn.map(r => `<tr><td>${r.name}</td><td>+${r.quantity}</td><td>${r.date}</td></tr>`).join('')}</table></div>` : '<div class="empty-state"><p>暂无入库记录</p></div>'}
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>📤 最近出库</h3></div>
+        ${recentOut.length ? `<div class="table-wrap"><table><tr><th>商品</th><th>数量</th><th>日期</th></tr>${recentOut.map(r => `<tr><td>${r.name}</td><td>-${r.quantity}</td><td>${r.date}</td></tr>`).join('')}</table></div>` : '<div class="empty-state"><p>暂无出库记录</p></div>'}
+      </div>
+    </div>
+    ${alertCount > 0 ? `<div class="card"><div class="card-header"><h3>⚠️ 库存预警提醒</h3></div><ul class="alert-list">${inv.filter(i => i.isAlert).map(i => `<li class="alert-item"><span class="name">${i.name}</span><span class="detail">当前库存 ${i.stock}，低于阈值 ${i.threshold}</span></li>`).join('')}</ul></div>` : ''}`;
+}
+
+// ============ INBOUND ============
+function renderInbound() {
+  const records = DB.get('inbound');
+  const cats = DB.get('categories');
+  return `
+    <div class="top-bar"><h1>📥 入库管理</h1>
+      ${isAdmin() ? '<button class="btn btn-primary" onclick="showInboundModal()">+ 新增入库</button>' : ''}
+    </div>
+    <div class="card">
+      <div class="filter-bar">
+        <input type="text" id="in-filter-name" placeholder="搜索商品名称..." oninput="filterInbound()">
+        <select id="in-filter-cat" onchange="filterInbound()"><option value="">全部类别</option>${cats.map(c => `<option>${c}</option>`).join('')}</select>
+        <input type="date" id="in-filter-from" onchange="filterInbound()"> ~ <input type="date" id="in-filter-to" onchange="filterInbound()">
+      </div>
+      <div class="table-wrap" id="inbound-table"></div>
+    </div>`;
+}
+
+function filterInbound() {
+  let records = DB.get('inbound');
+  const name = document.getElementById('in-filter-name').value.trim().toLowerCase();
+  const cat = document.getElementById('in-filter-cat').value;
+  const from = document.getElementById('in-filter-from').value;
+  const to = document.getElementById('in-filter-to').value;
+  if (name) records = records.filter(r => r.name.toLowerCase().includes(name));
+  if (cat) records = records.filter(r => r.category === cat);
+  if (from) records = records.filter(r => r.date >= from);
+  if (to) records = records.filter(r => r.date <= to);
+  renderInboundTable(records);
+}
+
+function renderInboundTable(records) {
+  const el = document.getElementById('inbound-table');
+  if (!records.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📥</div><p>暂无入库记录</p></div>'; return; }
+  el.innerHTML = `<table>
+    <tr><th>ID</th><th>商品名称</th><th>类别</th><th>数量</th><th>单价(元)</th><th>金额(元)</th><th>供应商</th><th>日期</th><th>备注</th>${isAdmin() ? '<th>操作</th>' : ''}</tr>
+    ${records.map(r => `<tr>
+      <td>${r.id}</td><td><strong>${r.name}</strong></td><td><span class="tag tag-blue">${r.category}</span></td>
+      <td>${r.quantity}</td><td>${Number(r.unitPrice).toFixed(2)}</td><td>${(r.quantity * r.unitPrice).toFixed(2)}</td>
+      <td>${r.supplier || '-'}</td><td>${r.date}</td><td>${r.remark || '-'}</td>
+      ${isAdmin() ? `<td><button class="btn btn-outline btn-sm" onclick="editInbound(${r.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delInbound(${r.id})">删除</button></td>` : ''}
+    </tr>`).join('')}</table>`;
+}
+
+function showInboundModal(record) {
+  const cats = DB.get('categories');
+  const isEdit = !!record;
+  const title = isEdit ? '编辑入库记录' : '新增入库';
+  showModal(title, `
+    <div class="form-group"><label>商品名称</label><input type="text" id="in-name" value="${record ? record.name : ''}" placeholder="请输入商品名称"></div>
+    <div class="form-group"><label>类别</label><select id="in-cat">${cats.map(c => `<option ${record && record.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group"><label>数量</label><input type="number" id="in-qty" value="${record ? record.quantity : ''}" min="1" placeholder="0"></div>
+      <div class="form-group"><label>单价(元)</label><input type="number" id="in-price" value="${record ? record.unitPrice : ''}" step="0.01" min="0" placeholder="0.00"></div>
+    </div>
+    <div class="form-group"><label>供应商</label><input type="text" id="in-supplier" value="${record ? record.supplier || '' : ''}" placeholder="选填"></div>
+    <div class="form-group"><label>入库日期</label><input type="date" id="in-date" value="${record ? record.date : new Date().toISOString().slice(0,10)}"></div>
+    <div class="form-group"><label>备注</label><textarea id="in-remark" rows="2" placeholder="选填">${record ? record.remark || '' : ''}</textarea></div>
+  `, () => {
+    const name = document.getElementById('in-name').value.trim();
+    const category = document.getElementById('in-cat').value;
+    const quantity = Number(document.getElementById('in-qty').value);
+    const unitPrice = Number(document.getElementById('in-price').value);
+    const supplier = document.getElementById('in-supplier').value.trim();
+    const date = document.getElementById('in-date').value;
+    const remark = document.getElementById('in-remark').value.trim();
+    if (!name || !quantity || !unitPrice || !date) { toast('请填写必填项', 'error'); return false; }
+    if (isEdit) {
+      const records = DB.get('inbound');
+      const idx = records.findIndex(r => r.id === record.id);
+      if (idx > -1) { records[idx] = { ...records[idx], name, category, quantity, unitPrice, supplier, date, remark }; DB.set('inbound', records); }
+      toast('入库记录已更新');
+    } else {
+      const records = DB.get('inbound');
+      records.push({ id: DB.nextId('inbound'), name, category, quantity, unitPrice, supplier, date, remark, createdAt: Date.now() });
+      DB.set('inbound', records);
+      toast('入库记录已添加');
+    }
+    renderPage();
+    return true;
+  });
+}
+
+function editInbound(id) {
+  const record = DB.get('inbound').find(r => r.id === id);
+  if (record) showInboundModal(record);
+}
+
+function delInbound(id) {
+  if (!confirm('确定要删除这条入库记录吗？')) return;
+  DB.set('inbound', DB.get('inbound').filter(r => r.id !== id));
+  toast('已删除');
+  renderPage();
+}
+
+// ============ OUTBOUND ============
+function renderOutbound() {
+  return `
+    <div class="top-bar"><h1>📤 出库管理</h1>
+      ${isAdmin() ? '<button class="btn btn-primary" onclick="showOutboundModal()">+ 新增出库</button>' : ''}
+    </div>
+    <div class="card">
+      <div class="filter-bar">
+        <input type="text" id="out-filter-name" placeholder="搜索商品名称..." oninput="filterOutbound()">
+        <input type="date" id="out-filter-from" onchange="filterOutbound()"> ~ <input type="date" id="out-filter-to" onchange="filterOutbound()">
+      </div>
+      <div class="table-wrap" id="outbound-table"></div>
+    </div>`;
+}
+
+function filterOutbound() {
+  let records = DB.get('outbound');
+  const name = document.getElementById('out-filter-name').value.trim().toLowerCase();
+  const from = document.getElementById('out-filter-from').value;
+  const to = document.getElementById('out-filter-to').value;
+  if (name) records = records.filter(r => r.name.toLowerCase().includes(name));
+  if (from) records = records.filter(r => r.date >= from);
+  if (to) records = records.filter(r => r.date <= to);
+  renderOutboundTable(records);
+}
+
+function renderOutboundTable(records) {
+  const el = document.getElementById('outbound-table');
+  if (!records.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📤</div><p>暂无出库记录</p></div>'; return; }
+  el.innerHTML = `<table>
+    <tr><th>ID</th><th>商品名称</th><th>数量</th><th>出库原因</th><th>经办人</th><th>日期</th><th>备注</th>${isAdmin() ? '<th>操作</th>' : ''}</tr>
+    ${records.map(r => `<tr>
+      <td>${r.id}</td><td><strong>${r.name}</strong></td><td>${r.quantity}</td>
+      <td>${r.reason || '-'}</td><td>${r.handler || '-'}</td><td>${r.date}</td><td>${r.remark || '-'}</td>
+      ${isAdmin() ? `<td><button class="btn btn-outline btn-sm" onclick="editOutbound(${r.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delOutbound(${r.id})">删除</button></td>` : ''}
+    </tr>`).join('')}</table>`;
+}
+
+function showOutboundModal(record) {
+  const inv = calcInventory();
+  const isEdit = !!record;
+  const title = isEdit ? '编辑出库记录' : '新增出库';
+  showModal(title, `
+    <div class="form-group"><label>商品名称</label>
+      ${isEdit ? `<input type="text" value="${record.name}" disabled>` :
+        `<select id="out-name">${inv.filter(i => i.stock > 0).map(i => `<option value="${i.name}">${i.name}（库存: ${i.stock}）</option>`).join('')}</select>`}
+    </div>
+    <div class="form-group"><label>出库数量</label><input type="number" id="out-qty" value="${record ? record.quantity : ''}" min="1" placeholder="0"></div>
+    <div class="form-group"><label>出库原因</label><input type="text" id="out-reason" value="${record ? record.reason || '' : ''}" placeholder="如：销售出库、领用出库等"></div>
+    <div class="form-group"><label>经办人</label><input type="text" id="out-handler" value="${record ? record.handler || '' : ''}" placeholder="选填"></div>
+    <div class="form-group"><label>出库日期</label><input type="date" id="out-date" value="${record ? record.date : new Date().toISOString().slice(0,10)}"></div>
+    <div class="form-group"><label>备注</label><textarea id="out-remark" rows="2" placeholder="选填">${record ? record.remark || '' : ''}</textarea></div>
+  `, () => {
+    const name = isEdit ? record.name : document.getElementById('out-name').value;
+    const quantity = Number(document.getElementById('out-qty').value);
+    const reason = document.getElementById('out-reason').value.trim();
+    const handler = document.getElementById('out-handler').value.trim();
+    const date = document.getElementById('out-date').value;
+    const remark = document.getElementById('out-remark').value.trim();
+    if (!name || !quantity || !date) { toast('请填写必填项', 'error'); return false; }
+    if (!isEdit) {
+      const item = inv.find(i => i.name === name);
+      if (item && quantity > item.stock) { toast(`库存不足！当前库存: ${item.stock}`, 'error'); return false; }
+    }
+    if (isEdit) {
+      const records = DB.get('outbound');
+      const idx = records.findIndex(r => r.id === record.id);
+      if (idx > -1) { records[idx] = { ...records[idx], quantity, reason, handler, date, remark }; DB.set('outbound', records); }
+      toast('出库记录已更新');
+    } else {
+      const records = DB.get('outbound');
+      records.push({ id: DB.nextId('outbound'), name, quantity, reason, handler, date, remark, createdAt: Date.now() });
+      DB.set('outbound', records);
+      toast('出库记录已添加');
+    }
+    renderPage();
+    return true;
+  });
+}
+
+function editOutbound(id) {
+  const record = DB.get('outbound').find(r => r.id === id);
+  if (record) showOutboundModal(record);
+}
+
+function delOutbound(id) {
+  if (!confirm('确定要删除这条出库记录吗？')) return;
+  DB.set('outbound', DB.get('outbound').filter(r => r.id !== id));
+  toast('已删除');
+  renderPage();
+}
+
+// ============ INVENTORY CHECK ============
+function renderCheck() {
+  const inv = calcInventory();
+  const checks = DB.get('checks');
+  return `
+    <div class="top-bar"><h1>📋 库存盘点</h1>
+      ${isAdmin() ? '<button class="btn btn-primary" onclick="showCheckModal()">+ 开始盘点</button>' : ''}
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>盘点历史</h3></div>
+      ${checks.length ? `<div class="table-wrap"><table>
+        <tr><th>盘点时间</th><th>盘点结果</th><th>操作</th></tr>
+        ${checks.map(c => `<tr>
+          <td>${c.date}</td>
+          <td>${c.items.filter(i => i.diff !== 0).length > 0 ?
+            `<span class="tag tag-red">有差异 (${c.items.filter(i => i.diff !== 0).length}项)</span>` :
+            `<span class="tag tag-green">无差异</span>`}</td>
+          <td><button class="btn btn-outline btn-sm" onclick="viewCheck(${c.id})">查看详情</button>
+          ${isAdmin() ? ` <button class="btn btn-danger btn-sm" onclick="delCheck(${c.id})">删除</button>` : ''}</td>
+        </tr>`).join('')}</table></div>` : '<div class="empty-state"><div class="icon">📋</div><p>暂无盘点记录</p></div>'}
+    </div>`;
+}
+
+function showCheckModal() {
+  const inv = calcInventory();
+  if (!inv.length) { toast('暂无库存数据', 'warning'); return; }
+  showModal('库存盘点', `
+    <p style="font-size:13px;color:var(--text-light);margin-bottom:16px">请输入实际盘点数量，系统将自动计算差异</p>
+    <table>
+      <tr><th>商品</th><th>账面数量</th><th>实际数量</th><th>差异</th></tr>
+      ${inv.map((item, i) => `<tr>
+        <td><strong>${item.name}</strong></td>
+        <td>${item.stock}</td>
+        <td><input type="number" id="check-qty-${i}" value="${item.stock}" min="0" onchange="updateCheckDiff(${i},${item.stock})" style="width:80px;padding:4px 8px;border:1px solid var(--border);border-radius:4px"></td>
+        <td id="check-diff-${i}" style="font-weight:600">0</td>
+      </tr>`).join('')}
+    </table>
+  `, () => {
+    const items = inv.map((item, i) => {
+      const actual = Number(document.getElementById('check-qty-' + i).value);
+      return { name: item.name, bookQty: item.stock, actualQty: actual, diff: actual - item.stock };
+    });
+    const checks = DB.get('checks');
+    checks.push({ id: DB.nextId('checks'), date: new Date().toLocaleString('zh-CN'), items, createdAt: Date.now() });
+    DB.set('checks', checks);
+    toast('盘点记录已保存');
+    renderPage();
+    return true;
+  });
+}
+
+function updateCheckDiff(i, bookQty) {
+  const actual = Number(document.getElementById('check-qty-' + i).value);
+  const diff = actual - bookQty;
+  const el = document.getElementById('check-diff-' + i);
+  el.textContent = diff > 0 ? `+${diff}` : diff;
+  el.style.color = diff > 0 ? 'var(--success)' : diff < 0 ? 'var(--danger)' : 'var(--text)';
+}
+
+function viewCheck(id) {
+  const check = DB.get('checks').find(c => c.id === id);
+  if (!check) return;
+  showModal('盘点详情 - ' + check.date, `
+    <table>
+      <tr><th>商品</th><th>账面数量</th><th>实际数量</th><th>差异</th><th>状态</th></tr>
+      ${check.items.map(i => `<tr>
+        <td><strong>${i.name}</strong></td><td>${i.bookQty}</td><td>${i.actualQty}</td>
+        <td style="font-weight:600;color:${i.diff > 0 ? 'var(--success)' : i.diff < 0 ? 'var(--danger)' : 'var(--text)'}">${i.diff > 0 ? '+' + i.diff : i.diff}</td>
+        <td>${i.diff > 0 ? '<span class="tag tag-green">盘盈</span>' : i.diff < 0 ? '<span class="tag tag-red">盘亏</span>' : '<span class="tag tag-blue">一致</span>'}</td>
+      </tr>`).join('')}
+    </table>`);
+}
+
+function delCheck(id) {
+  if (!confirm('确定要删除这条盘点记录吗？')) return;
+  DB.set('checks', DB.get('checks').filter(c => c.id !== id));
+  toast('已删除');
+  renderPage();
+}
+
+// ============ SUMMARY ============
+function renderSummary() {
+  const inv = calcInventory();
+  const cats = DB.get('categories');
+  let filtered = [...inv];
+  const totalStock = inv.reduce((s, i) => s + i.stock, 0);
+  const totalValue = inv.reduce((s, i) => s + i.stockValue, 0);
+  return `
+    <div class="top-bar"><h1>📈 库存汇总</h1>
+      <button class="btn btn-outline" onclick="exportCSV()">📥 导出 CSV</button>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon blue">📦</div><div class="stat-info"><div class="stat-value">${inv.length}</div><div class="stat-label">品类总数</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">📊</div><div class="stat-info"><div class="stat-value">${totalStock}</div><div class="stat-label">库存总量</div></div></div>
+      <div class="stat-card"><div class="stat-icon yellow">💰</div><div class="stat-info"><div class="stat-value">¥${totalValue.toFixed(0)}</div><div class="stat-label">库存总金额</div></div></div>
+    </div>
+    <div class="card">
+      <div class="filter-bar">
+        <select id="sum-filter-cat" onchange="filterSummary()"><option value="">全部类别</option>${cats.map(c => `<option>${c}</option>`).join('')}</select>
+        <input type="text" id="sum-filter-name" placeholder="搜索商品..." oninput="filterSummary()">
+      </div>
+      <div class="table-wrap" id="summary-table"></div>
+    </div>`;
+}
+
+function filterSummary() {
+  const cat = document.getElementById('sum-filter-cat').value;
+  const name = document.getElementById('sum-filter-name').value.trim().toLowerCase();
+  let inv = calcInventory();
+  if (cat) inv = inv.filter(i => i.category === cat);
+  if (name) inv = inv.filter(i => i.name.toLowerCase().includes(name));
+  renderSummaryTable(inv);
+}
+
+function renderSummaryTable(inv) {
+  const el = document.getElementById('summary-table');
+  if (!inv.length) { el.innerHTML = '<div class="empty-state"><p>暂无库存数据</p></div>'; return; }
+  el.innerHTML = `<table id="summary-data">
+    <tr><th>商品名称</th><th>类别</th><th>总入库</th><th>总出库</th><th>当前库存</th><th>库存金额(元)</th><th>状态</th></tr>
+    ${inv.map(i => `<tr>
+      <td><strong>${i.name}</strong></td><td><span class="tag tag-blue">${i.category}</span></td>
+      <td>${i.inQty}</td><td>${i.outQty}</td>
+      <td style="font-weight:600;color:${i.isAlert ? 'var(--danger)' : 'var(--text)'}">${i.stock}</td>
+      <td>¥${i.stockValue.toFixed(2)}</td>
+      <td>${i.isAlert ? '<span class="tag tag-red">⚠️ 预警</span>' : i.stock === 0 ? '<span class="tag tag-yellow">缺货</span>' : '<span class="tag tag-green">正常</span>'}</td>
+    </tr>`).join('')}</table>`;
+}
+
+function exportCSV() {
+  const inv = calcInventory();
+  let csv = '\uFEFF商品名称,类别,总入库,总出库,当前库存,库存金额\n';
+  inv.forEach(i => { csv += `${i.name},${i.category},${i.inQty},${i.outQty},${i.stock},${i.stockValue.toFixed(2)}\n`; });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `库存汇总_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('CSV 已导出');
+}
+
+// ============ QUERY ============
+function renderQuery() {
+  return `
+    <div class="top-bar"><h1>🔍 单品查询</h1></div>
+    <div class="card">
+      <div class="form-group"><label>输入商品名称</label>
+        <input type="text" id="query-name" placeholder="输入商品名称搜索..." oninput="doQuery()" style="max-width:400px">
+      </div>
+      <div id="query-result"></div>
+    </div>`;
+}
+
+function doQuery() {
+  const name = document.getElementById('query-name').value.trim().toLowerCase();
+  const el = document.getElementById('query-result');
+  if (!name) { el.innerHTML = ''; return; }
+  const inv = calcInventory();
+  const item = inv.find(i => i.name.toLowerCase().includes(name));
+  if (!item) { el.innerHTML = '<div class="empty-state"><p>未找到匹配商品</p></div>'; return; }
+  const ins = DB.get('inbound').filter(r => r.name.toLowerCase().includes(name));
+  const outs = DB.get('outbound').filter(r => r.name.toLowerCase().includes(name));
+  el.innerHTML = `
+    <div style="margin-bottom:20px;padding:16px;background:#f8fafc;border-radius:8px">
+      <h3 style="margin-bottom:8px">${item.name} <span class="tag tag-blue">${item.category}</span>
+        ${item.isAlert ? '<span class="tag tag-red">⚠️ 库存预警</span>' : item.stock === 0 ? '<span class="tag tag-yellow">缺货</span>' : '<span class="tag tag-green">正常</span>'}
+      </h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;font-size:14px">
+        <div><span style="color:var(--text-light)">当前库存</span><br><strong style="font-size:20px;color:${item.isAlert ? 'var(--danger)' : 'var(--text)'}">${item.stock}</strong></div>
+        <div><span style="color:var(--text-light)">库存金额</span><br><strong style="font-size:20px">¥${item.stockValue.toFixed(2)}</strong></div>
+        <div><span style="color:var(--text-light)">累计入库</span><br><strong style="font-size:20px;color:var(--success)">${item.inQty}</strong></div>
+        <div><span style="color:var(--text-light)">累计出库</span><br><strong style="font-size:20px;color:var(--warning)">${item.outQty}</strong></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <h4 style="margin-bottom:8px">📥 入库记录</h4>
+        ${ins.length ? `<table><tr><th>日期</th><th>数量</th><th>供应商</th></tr>${ins.map(r => `<tr><td>${r.date}</td><td>+${r.quantity}</td><td>${r.supplier || '-'}</td></tr>`).join('')}</table>` : '<p style="color:var(--text-light);font-size:13px">无入库记录</p>'}
+      </div>
+      <div>
+        <h4 style="margin-bottom:8px">📤 出库记录</h4>
+        ${outs.length ? `<table><tr><th>日期</th><th>数量</th><th>原因</th></tr>${outs.map(r => `<tr><td>${r.date}</td><td>-${r.quantity}</td><td>${r.reason || '-'}</td></tr>`).join('')}</table>` : '<p style="color:var(--text-light);font-size:13px">无出库记录</p>'}
+      </div>
+    </div>`;
+}
+
+// ============ ALERT ============
+function renderAlert() {
+  const inv = calcInventory();
+  const alerts = DB.get('alerts');
+  const alertItems = inv.filter(i => i.isAlert);
+  return `
+    <div class="top-bar"><h1>⚠️ 库存预警</h1>
+      <button class="btn btn-primary" onclick="showAlertSettingModal()">+ 设置预警</button>
+    </div>
+    ${alertItems.length ? `<div class="card">
+      <div class="card-header"><h3>当前预警商品 (${alertItems.length})</h3></div>
+      <ul class="alert-list">
+        ${alertItems.map(i => `<li class="alert-item">
+          <div><span class="name">${i.name}</span><span style="margin-left:8px"><span class="tag tag-blue">${i.category}</span></span></div>
+          <span class="detail">库存 ${i.stock} / 阈值 ${i.threshold}</span>
+        </li>`).join('')}
+      </ul>
+    </div>` : `<div class="card"><div class="empty-state"><div class="icon">✅</div><p>暂无预警商品，库存状态良好</p></div></div>`}
+    <div class="card">
+      <div class="card-header"><h3>预警设置</h3></div>
+      ${alerts.length ? `<div class="table-wrap"><table>
+        <tr><th>商品名称</th><th>预警阈值</th><th>当前库存</th><th>状态</th><th>操作</th></tr>
+        ${alerts.map(a => {
+          const item = inv.find(i => i.name === a.name);
+          const stock = item ? item.stock : 0;
+          return `<tr>
+            <td><strong>${a.name}</strong></td><td>${a.threshold}</td><td>${stock}</td>
+            <td>${stock <= a.threshold ? '<span class="tag tag-red">⚠️ 预警中</span>' : '<span class="tag tag-green">正常</span>'}</td>
+            <td><button class="btn btn-outline btn-sm" onclick="editAlertSetting('${a.name}')">编辑</button> <button class="btn btn-danger btn-sm" onclick="delAlertSetting('${a.name}')">删除</button></td>
+          </tr>`;
+        }).join('')}</table></div>` : '<div class="empty-state"><p>暂未设置预警规则</p></div>'}
+    </div>`;
+}
+
+function showAlertSettingModal(existing) {
+  const inv = calcInventory();
+  const isEdit = !!existing;
+  showModal(isEdit ? '编辑预警设置' : '设置库存预警', `
+    <div class="form-group"><label>商品名称</label>
+      ${isEdit ? `<input type="text" value="${existing.name}" disabled>` :
+        `<select id="alert-name">${inv.map(i => `<option value="${i.name}">${i.name}（库存: ${i.stock}）</option>`).join('')}</select>`}
+    </div>
+    <div class="form-group"><label>最低库存阈值</label><input type="number" id="alert-threshold" value="${existing ? existing.threshold : ''}" min="0" placeholder="低于此数量时预警"></div>
+  `, () => {
+    const name = isEdit ? existing.name : document.getElementById('alert-name').value;
+    const threshold = Number(document.getElementById('alert-threshold').value);
+    if (!name || threshold === undefined) { toast('请填写必填项', 'error'); return false; }
+    let alerts = DB.get('alerts');
+    const idx = alerts.findIndex(a => a.name === name);
+    if (idx > -1) { alerts[idx].threshold = threshold; } else { alerts.push({ name, threshold }); }
+    DB.set('alerts', alerts);
+    toast('预警设置已保存');
+    renderPage();
+    return true;
+  });
+}
+
+function editAlertSetting(name) {
+  const alert = DB.get('alerts').find(a => a.name === name);
+  if (alert) showAlertSettingModal(alert);
+}
+
+function delAlertSetting(name) {
+  if (!confirm('确定要删除该预警设置吗？')) return;
+  DB.set('alerts', DB.get('alerts').filter(a => a.name !== name));
+  toast('已删除');
+  renderPage();
+}
+
+// ============ USERS ============
+function renderUsers() {
+  if (!isAdmin()) return '<div class="empty-state"><p>无权限访问</p></div>';
+  const users = DB.get('users');
+  return `
+    <div class="top-bar"><h1>👥 权限管理</h1>
+      <button class="btn btn-primary" onclick="showUserModal()">+ 添加用户</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap"><table>
+        <tr><th>ID</th><th>用户名</th><th>显示名称</th><th>角色</th><th>操作</th></tr>
+        ${users.map(u => `<tr>
+          <td>${u.id}</td><td><strong>${u.username}</strong></td><td>${u.displayName}</td>
+          <td>${u.role === 'admin' ? '<span class="tag tag-blue">管理员</span>' : '<span class="tag tag-green">普通用户</span>'}</td>
+          <td>${u.id === 1 ? '-' : `<button class="btn btn-outline btn-sm" onclick="editUser(${u.id})">编辑</button> <button class="btn btn-danger btn-sm" onclick="delUser(${u.id})">删除</button>`}</td>
+        </tr>`).join('')}</table></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>权限说明</h3></div>
+      <table>
+        <tr><th>功能</th><th>管理员</th><th>普通用户</th></tr>
+        <tr><td>查看入库/出库/库存</td><td>✅</td><td>✅</td></tr>
+        <tr><td>新增/编辑/删除入库记录</td><td>✅</td><td>❌</td></tr>
+        <tr><td>新增/编辑/删除出库记录</td><td>✅</td><td>❌</td></tr>
+        <tr><td>库存盘点</td><td>✅</td><td>❌</td></tr>
+        <tr><td>库存预警设置</td><td>✅</td><td>❌</td></tr>
+        <tr><td>权限管理</td><td>✅</td><td>❌</td></tr>
+        <tr><td>导出数据</td><td>✅</td><td>✅</td></tr>
+      </table>
+    </div>`;
+}
+
+function showUserModal(user) {
+  const isEdit = !!user;
+  showModal(isEdit ? '编辑用户' : '添加用户', `
+    <div class="form-group"><label>用户名</label><input type="text" id="user-username" value="${user ? user.username : ''}" placeholder="登录用户名" ${isEdit ? 'disabled' : ''}></div>
+    <div class="form-group"><label>显示名称</label><input type="text" id="user-display" value="${user ? user.displayName : ''}" placeholder="如：张三"></div>
+    <div class="form-group"><label>密码</label><input type="text" id="user-password" value="${user ? user.password : ''}" placeholder="登录密码"></div>
+    <div class="form-group"><label>角色</label>
+      <select id="user-role">
+        <option value="user" ${user && user.role === 'user' ? 'selected' : ''}>普通用户</option>
+        <option value="admin" ${user && user.role === 'admin' ? 'selected' : ''}>管理员</option>
+      </select>
+    </div>
+  `, () => {
+    const username = isEdit ? user.username : document.getElementById('user-username').value.trim();
+    const displayName = document.getElementById('user-display').value.trim();
+    const password = document.getElementById('user-password').value.trim();
+    const role = document.getElementById('user-role').value;
+    if (!username || !password || !displayName) { toast('请填写所有字段', 'error'); return false; }
+    const users = DB.get('users');
+    if (isEdit) {
+      const idx = users.findIndex(u => u.id === user.id);
+      if (idx > -1) { users[idx] = { ...users[idx], displayName, password, role }; DB.set('users', users); }
+      toast('用户已更新');
+    } else {
+      if (users.find(u => u.username === username)) { toast('用户名已存在', 'error'); return false; }
+      users.push({ id: DB.nextId('users'), username, displayName, password, role });
+      DB.set('users', users);
+      toast('用户已添加');
+    }
+    renderPage();
+    return true;
+  });
+}
+
+function editUser(id) {
+  const user = DB.get('users').find(u => u.id === id);
+  if (user) showUserModal(user);
+}
+
+function delUser(id) {
+  if (!confirm('确定要删除该用户吗？')) return;
+  DB.set('users', DB.get('users').filter(u => u.id !== id));
+  toast('已删除');
+  renderPage();
+}
+
+// ============ MODAL ============
+function showModal(title, body, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>${title}</h3>
+      ${body}
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="modal-cancel">取消</button>
+        ${onConfirm ? '<button class="btn btn-primary" id="modal-confirm">确定</button>' : ''}
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#modal-cancel').onclick = () => overlay.remove();
+  if (onConfirm) {
+    overlay.querySelector('#modal-confirm').onclick = () => {
+      const result = onConfirm();
+      if (result !== false) overlay.remove();
+    };
+  }
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+// ============ INIT ============
+if (currentUser) { renderApp(); } else { renderLogin(); }
+
+// Auto-render table data for pages that need it
+const origRenderPage = renderPage;
+renderPage = function() {
+  origRenderPage();
+  setTimeout(() => {
+    if (currentPage === 'inbound') filterInbound();
+    if (currentPage === 'outbound') filterOutbound();
+    if (currentPage === 'summary') filterSummary();
+  }, 0);
+};
+</script>
+</body>
+</html>
